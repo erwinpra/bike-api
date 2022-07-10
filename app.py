@@ -54,26 +54,6 @@ def insert_into_stations(data, conn):
     conn.commit()
     return 'OK'
 
-# add trips
-# Get the data values
-@app.route('/trips/add', methods=['POST']) 
-def route_add_trips():
-    data = pd.Series(eval(request.get_json(force=True)))
-    data = tuple(data.fillna('').values)
-
-    conn = make_connection()
-    result = insert_into_trips(data, conn)
-    return result
-
-def insert_into_trips(data, conn):
-    query = f"""INSERT INTO trips values {data}"""
-    try:
-        conn.execute(query)
-    except:
-        return 'Error'
-    conn.commit()
-    return 'OK'
-
 # get by station_id
 @app.route('/stations/<station_id>')
 def route_stations_id(station_id):
@@ -107,9 +87,29 @@ def route_trip_id(trip_id):
     return stations.to_json()
 
 def get_trip_id(conn,trip_id):
-    query = f"""SELECT * FROM trips WHERE trip_id = {trip_id}"""
+    query = f"""SELECT * FROM trips WHERE id = {trip_id}"""
     result = pd.read_sql_query(query, conn)
     return result
+
+# add trips
+# Get the data values
+@app.route('/trips/add', methods=['POST']) 
+def route_add_trips():
+    data = pd.Series(eval(request.get_json(force=True)))
+    data = tuple(data.fillna('').values)
+
+    conn = make_connection()
+    result = insert_into_trips(data, conn)
+    return result
+
+def insert_into_trips(data, conn):
+    query = f"""INSERT INTO trips values {data}"""
+    try:
+        conn.execute(query)
+    except:
+        return 'Error'
+    conn.commit()
+    return 'OK'
 
 # get duration of bike
 @app.route('/trips/average_duration')
@@ -127,32 +127,25 @@ def get_duration(conn):
 @app.route('/trips/average_duration/<bike_id>')
 def route_average_duration_bike_id(bike_id):
     conn = make_connection()
-    duration = get_duration(conn,bike_id)
+    duration = get_duration_bike_id(conn,bike_id)
     return duration.to_json()
 
-def get_duration(conn,bike_id):
+def get_duration_bike_id(conn,bike_id):
     query = f"""SELECT * FROM trips WHERE bikeid = {bike_id} group by start_station_id"""
     result = pd.read_sql_query(query, conn)
     return result
-
-@app.route('/stations/post', methods=["POST"])
-def post_stations(specified_date):
+    
+@app.route('/trips/post', methods=["POST"])
+def post_stations():
     conn = make_connection()
-    input_data = request.get_json() # Get the input as dictionary
-    specified_date = input_data['period'] # Select specific items (period) from the dictionary (the value will be "2015-08")
-
-    # Subset the data with query 
-    conn = make_connection()
-    query = f"SELECT * FROM stations WHERE start_time LIKE ({specified_date}%)"
+    req = request.get_json(force=True)
+    period = req['period']
+    query = f"SELECT * FROM trips WHERE start_time LIKE '{period}%'"
     selected_data = pd.read_sql_query(query, conn)
-
-    # Make the aggregate
     result = selected_data.groupby('start_station_id').agg({
         'bikeid' : 'count', 
         'duration_minutes' : 'mean'
     })
-
-    # Return the result
     return result.to_json()
 
 if __name__ == '__main__':
